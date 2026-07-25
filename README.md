@@ -23,17 +23,16 @@ input/AND2x2_ASAP7_6t_L.gds
 ./run.sh AND2x2_ASAP7_6t_L
 ```
 
-完整执行链：
+执行顺序：
 
 ```text
-SPICE/CDL + GDS
+输入SPICE/CDL + GDS
   -> 根据 MOS 拓扑自动识别输入、输出、电源和地
   -> 枚举输入并生成真值表、布尔函数和 timing arc
-  -> 自动生成 cells.generated.json
   -> Calibre LVS
   -> Calibre xACT PEX
-  -> Liberate 调用 Spectre 进行 7x7 表征
-  -> 从 GDS 计算并回填 cell area
+  -> Liberate 调用 Spectre 进行表征
+  -> 从 GDS 计算 cell area
   -> Liberty .lib
 ```
 
@@ -45,7 +44,7 @@ output/<cell名>/characterization/output/<cell名>.lib
 
 ## 自定义库名
 
-在 cell 名后加上相应参数：
+可以在 cell 名后加上相应参数：
 
 ```bash
 ./run.sh AND2x2_ASAP7_6t_L \
@@ -53,7 +52,7 @@ output/<cell名>/characterization/output/<cell名>.lib
   --output-lib asap7_selected_postlayout.lib
 ```
 
-其他配置生成参数：
+可选参数：
 
 - `--skip-unsupported`：跳过无法自动识别的子电路；
 - `--voltage VALUE`：表征电压，默认 `0.7` V；
@@ -115,10 +114,10 @@ export LM_LICENSE_FILE=port@license-server
 export CDS_LIC_FILE=port@license-server
 ```
 
-## 内置工艺条件
+## 工艺条件
 
 - 工艺：ASAP7_6t_L；
 - 默认电压：0.7 V；
 - 默认温度：25 °C；
 - delay/power template：7 个输入 slew × 7 个输出负载；
-- Liberty area 根据 GDS `layer 100 / datatype 0` placement boundary 的宽度 × 高度计算，可正确反映多行单元高度。
+- Liberty area 根据 GDS `layer 100 / datatype 0` placement boundary 的宽 × 高计算。
