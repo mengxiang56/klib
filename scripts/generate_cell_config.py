@@ -414,8 +414,8 @@ def main() -> int:
     parser.add_argument("--mode", choices=("spice", "gds"), required=True)
     parser.add_argument("--gds-dir", type=Path, help="Required in gds mode")
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--library-name", default="MY_ASAP7_POSTLAYOUT")
-    parser.add_argument("--output-lib", default="my_asap7_postlayout.lib")
+    parser.add_argument("--library-name")
+    parser.add_argument("--output-lib")
     parser.add_argument("--voltage", type=float, default=0.7)
     parser.add_argument("--temperature", type=float, default=25)
     parser.add_argument("--threads", type=int, default=8)
@@ -480,9 +480,13 @@ def main() -> int:
         if missing:
             raise SystemExit(f"requested cells not found or unsupported: {missing}")
 
+    default_cell_name = cells[0]["cell_name"]
+    library_name = args.library_name or default_cell_name
+    output_lib = args.output_lib or f"{default_cell_name}.lib"
+
     config = {
-        "library_name": args.library_name,
-        "output_lib": args.output_lib,
+        "library_name": library_name,
+        "output_lib": output_lib,
         "voltage": args.voltage,
         "temperature": args.temperature,
         "threads": args.threads,

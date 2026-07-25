@@ -1,42 +1,26 @@
-# ASAP7 GDS 到 Liberty 独立流程
+# ASAP7 GDS to Liberty
 
-本仓库包含从标准单元 GDS 生成 Liberty 所需的全部流程脚本、ASAP7 Calibre rule、
-器件模型和 Liberate 设置。默认情况下不会读取本仓库之外的工艺文件。
+本仓库包含从标准单元 GDS 生成 Liberty 所需的脚本、ASAP7 Calibre rule、器件模型和 Liberate 设置。
 
-用户只需要提供：
+用户需要提供：
 
 - `input/` 下同名的标准单元 GDS 和晶体管级 SPICE/CDL；
 - 安装了 `centos7-stdcell` Docker 镜像的宿主机；
 - 可用的 Calibre、Liberate 和 Spectre 许可证环境。
 
-## 一键运行
+## 执行
 
-把同名输入文件放到 `input/`，例如：
+把输入SPICE与GDS放到 `input/`，如：
 
 ```text
-input/NAND2x1_ASAP7_6t_L.sp
-input/NAND2x1_ASAP7_6t_L.gds
+input/AND2x2_ASAP7_6t_L.sp
+input/AND2x2_ASAP7_6t_L.gds
 ```
 
 运行时只需提供 cell 名：
 
 ```bash
-./run.sh NAND2x1_ASAP7_6t_L
-```
-
-`input/` 还包含一个不属于旧固定类型列表的 AND2 示例，用于验证 MOS 拓扑推断：
-
-```bash
-./input/run_and2_example.sh
-```
-
-该例会自动推导出 `Y = A * B`。GDS/CDL 来自 OpenROAD 官方
-`asap7sc6t_26` LVT 标准库的 `390b499` 版本，并从完整标准库中提取为单-cell 输入。
-
-示例输出位于：
-
-```text
-lib-NAND2x1_ASAP7_6t_L/characterization/output/NAND2x1_ASAP7_6t_L.lib
+./run.sh AND2x2_ASAP7_6t_L
 ```
 
 完整执行链：
@@ -64,7 +48,7 @@ lib-<cell名>/characterization/output/my_asap7_postlayout.lib
 配置生成参数直接跟在 cell 名后：
 
 ```bash
-./run.sh NAND2x1_ASAP7_6t_L \
+./run.sh AND2x2_ASAP7_6t_L \
   --library-name ASAP7_SELECTED_POSTLAYOUT \
   --output-lib asap7_selected_postlayout.lib
 ```
@@ -75,8 +59,8 @@ lib-<cell名>/characterization/output/my_asap7_postlayout.lib
 - `--voltage VALUE`：表征电压，默认 `0.7` V；
 - `--temperature VALUE`：表征温度，默认 `25` °C；
 - `--threads N`：Liberate 并发线程数，默认 `8`；
-- `--library-name NAME`：Liberty library 名称；
-- `--output-lib FILE`：输出 Liberty 文件名。
+- `--library-name NAME`：Liberty library 名称，默认使用当前单元名；
+- `--output-lib FILE`：输出 Liberty 文件名，默认使用 `<单元名>.lib`。
 
 流程会分析 MOS 的 gate/source/drain/bulk 连接：
 
@@ -131,54 +115,10 @@ export LM_LICENSE_FILE=port@license-server
 export CDS_LIC_FILE=port@license-server
 ```
 
-如果已经进入包含 EDA 工具的容器，可跳过 Docker 外壳：
-
-```bash
-export KLIB_EXECUTION=local
-./run.sh NAND2x1_ASAP7_6t_L
-```
-
-## 仓库内容
-
-```text
-gds-to-lib-standalone/
-├── run.sh
-├── README.md
-├── input/
-│   ├── NAND2x1_ASAP7_6t_L.gds
-│   ├── NAND2x1_ASAP7_6t_L.sp
-│   ├── AND2x2_ASAP7_6t_L.gds
-│   ├── AND2x2_ASAP7_6t_L.sp
-│   ├── run_and2_example.sh
-│   └── run_example.sh
-├── assets/
-│   ├── models/
-│   │   └── 7nm_TT_160803.pm
-│   ├── reference/
-│   │   ├── pex.rule
-│   │   └── settings.tcl
-│   ├── ruledirs/
-│   │   ├── layer.inc
-│   │   ├── lvsRules_calibre_asap7.rul
-│   │   ├── pexMap_calibre_asap7.rul
-│   │   ├── rcxControl_calibre_asap7.rul
-│   │   ├── rcxRules_calibre_asap7.FS
-│   │   └── rcxRules_calibre_asap7.xact
-│   └── scripts/
-│       └── calc_lib_area.py
-└── scripts/
-    ├── generate_cell_config.py
-    ├── flow.py
-    ├── run_in_docker.sh
-    └── run_pipeline.sh
-```
-
 ## 内置工艺条件
 
-- 工艺模型：当前项目使用的 ASAP7 TT 模型；
+- 工艺：ASAP7_6t_L；
 - 默认电压：0.7 V；
 - 默认温度：25 °C；
 - delay/power template：7 个输入 slew × 7 个输出负载；
-- timing、transition、internal power、pin capacitance 和 leakage 均由
-  Liberate/Spectre 基于 PEX 网表生成；
 - Liberty area 根据 GDS 非文本几何宽度和 ASAP7 6-track 固定高度 `0.216 µm` 计算。

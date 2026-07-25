@@ -17,7 +17,7 @@ fi
 # 约定所有输入都在 input/，中间文件和最终结果写入 lib-<cell名>/。
 input_dir="$root/input"
 gds_dir="$input_dir"
-work_dir="$root/lib-$cell_name"
+work_dir="$root/output/$cell_name"
 
 # 在 input/ 中查找与 cell 同名的 SPICE/CDL 文件。
 # 支持常见的 .sp、.spi、.spice、.cdl 和 .netlist 扩展名，文件名匹配不区分大小写。

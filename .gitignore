@@ -1,10 +1,7 @@
 __pycache__/
 *.py[cod]
 .DS_Store
-lib
-lib-*/
 output/
-tests
 *.log
 *.ldb
 *.ldb.gz
