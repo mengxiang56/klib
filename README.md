@@ -40,12 +40,12 @@ SPICE/CDL + GDS
 最终 Liberty 位于：
 
 ```text
-lib-<cell名>/characterization/output/my_asap7_postlayout.lib
+output/<cell名>/characterization/output/<cell名>.lib
 ```
 
-## 设置库名
+## 自定义库名
 
-配置生成参数直接跟在 cell 名后：
+在 cell 名后加上相应参数：
 
 ```bash
 ./run.sh AND2x2_ASAP7_6t_L \
@@ -121,4 +121,4 @@ export CDS_LIC_FILE=port@license-server
 - 默认电压：0.7 V；
 - 默认温度：25 °C；
 - delay/power template：7 个输入 slew × 7 个输出负载；
-- Liberty area 根据 GDS 非文本几何宽度和 ASAP7 6-track 固定高度 `0.216 µm` 计算。
+- Liberty area 根据 GDS `layer 100 / datatype 0` placement boundary 的宽度 × 高度计算，可正确反映多行单元高度。

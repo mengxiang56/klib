@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Calculate Liberty cell area from a GDS cell width.
-
-ASAP7 6-track cells use a fixed cell height of 0.216 um.  This script measures
-the GDS width from non-text geometry only, so pin labels placed outside the cell
-do not affect the computed Liberty area.
-"""
+"""Calculate Liberty cell area from the GDS layer 100/0 placement boundary."""
 
 import argparse
 import json
@@ -22,9 +17,9 @@ from typing import Optional
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_GDS_DIR = SCRIPT_DIR / "gds"
 DEFAULT_LIB_DIR = SCRIPT_DIR / "liberate"
-DEFAULT_CELL_HEIGHT_UM = 0.216
 KLAYOUT_BIN = "klayout"
-BOUNDARY_LAYER_KEYS = [(100, 0, 8), (98, 0, 8)]
+BOUNDARY_LAYER = 100
+BOUNDARY_DATATYPE = 0
 
 
 KLAYOUT_HELPER = r'''
@@ -47,27 +42,39 @@ def main():
     if cell is None:
         raise RuntimeError("GDS has no top cell")
 
+    boundary_layer_index = None
+    for layer_index in layout.layer_indices():
+        info = layout.get_info(layer_index)
+        if info.layer == 100 and info.datatype == 0:
+            boundary_layer_index = layer_index
+            break
+    if boundary_layer_index is None:
+        raise RuntimeError(
+            "Selected cell has no placement boundary layer 100/0"
+        )
+
     bbox = None
     text_count = 0
     geometry_count = 0
-    for layer_index in layout.layer_indices():
-        iterator = cell.begin_shapes_rec(layer_index)
-        while not iterator.at_end():
-            shape = iterator.shape()
-            if shape.is_text():
-                text_count += 1
-                iterator.next()
-                continue
-
-            shape_bbox = shape.bbox()
-            if not shape_bbox.empty():
-                geometry_count += 1
-                transformed_bbox = shape_bbox.transformed(iterator.trans())
-                bbox = transformed_bbox if bbox is None else bbox + transformed_bbox
+    iterator = cell.begin_shapes_rec(boundary_layer_index)
+    while not iterator.at_end():
+        shape = iterator.shape()
+        if shape.is_text():
+            text_count += 1
             iterator.next()
+            continue
+
+        shape_bbox = shape.bbox()
+        if not shape_bbox.empty():
+            geometry_count += 1
+            transformed_bbox = shape_bbox.transformed(iterator.trans())
+            bbox = transformed_bbox if bbox is None else bbox + transformed_bbox
+        iterator.next()
 
     if bbox is None or bbox.empty():
-        raise RuntimeError("No non-text geometry found in selected cell")
+        raise RuntimeError(
+            "No geometry found on placement boundary layer 100/0"
+        )
 
     dbu = layout.dbu
     width_um = bbox.width() * dbu
@@ -85,9 +92,11 @@ def main():
                     "top": bbox.top,
                 },
                 "width_um": width_um,
-                "geometry_bbox_height_um": height_um,
+                "height_um": height_um,
                 "geometry_count": geometry_count,
                 "text_count_ignored": text_count,
+                "area_engine": "klayout",
+                "bbox_source": "boundary-layer-100-0",
             },
             sort_keys=True,
         )
@@ -101,8 +110,8 @@ main()
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
-            "Measure a circuit GDS width excluding text labels and compute "
-            "Liberty area as width * ASAP7 cell height."
+            "Measure the GDS layer 100/0 placement boundary and compute "
+            "Liberty area as boundary width * boundary height."
         )
     )
     parser.add_argument("circuit", help="Circuit/cell name, for example FULLADDER or COMP42.")
@@ -117,12 +126,6 @@ def parse_args():
         type=Path,
         default=DEFAULT_LIB_DIR,
         help=f"Liberty directory. Default: {DEFAULT_LIB_DIR}",
-    )
-    parser.add_argument(
-        "--height",
-        type=float,
-        default=DEFAULT_CELL_HEIGHT_UM,
-        help=f"ASAP7 standard-cell height in um. Default: {DEFAULT_CELL_HEIGHT_UM}",
     )
     parser.add_argument(
         "--cell",
@@ -375,16 +378,16 @@ def parse_gds_measurement(gds_path, cell_name, debug_layers=False):
         cell = cells.get(fallback_name) if fallback_name else None
     if cell is None:
         raise SystemExit("GDS has no readable cells: {}".format(gds_path))
-    bbox_source = "all-non-text"
-    bbox = cell["bbox"]
-    for key in BOUNDARY_LAYER_KEYS:
-        if key in cell["layer_bboxes"]:
-            bbox = cell["layer_bboxes"][key]
-            bbox_source = "boundary-layer-{}-{}".format(key[0], key[1])
-            break
+    bbox = None
+    for key, layer_bbox in cell["layer_bboxes"].items():
+        if key[0] == BOUNDARY_LAYER and key[1] == BOUNDARY_DATATYPE:
+            bbox = merge_bbox(bbox, layer_bbox)
 
     if bbox is None:
-        raise SystemExit("No non-text geometry found in selected cell")
+        raise SystemExit(
+            "No placement boundary geometry found on GDS layer 100/0 "
+            "in selected cell"
+        )
 
     if debug_layers:
         sys.stderr.write("GDS layer bboxes for {}:\n".format(cell["name"]))
@@ -407,11 +410,11 @@ def parse_gds_measurement(gds_path, cell_name, debug_layers=False):
         "dbu": dbu_um,
         "bbox_dbu": bbox,
         "width_um": width_um,
-        "geometry_bbox_height_um": height_um,
+        "height_um": height_um,
         "geometry_count": cell["geometry_count"],
         "text_count_ignored": cell["text_count"],
         "area_engine": "python-gds",
-        "bbox_source": bbox_source,
+        "bbox_source": "boundary-layer-100-0",
     }
 
 
@@ -457,17 +460,18 @@ def main():
     measurement = measure_area(gds_path, cell_name, args.area_engine, args.debug_layers)
 
     width_um = float(measurement["width_um"])
-    area = width_um * args.height
+    height_um = float(measurement["height_um"])
+    area = width_um * height_um
     area_text = f"{area:.{args.precision}f}".rstrip("0").rstrip(".")
 
     print(f"circuit: {circuit}")
     print(f"gds: {gds_path}")
     print(f"gds_cell: {measurement['top_cell']}")
-    print(f"non_text_bbox_width_um: {width_um:.{args.precision}f}")
-    print(f"fixed_cell_height_um: {args.height:.{args.precision}f}")
+    print(f"boundary_bbox_width_um: {width_um:.{args.precision}f}")
+    print(f"boundary_bbox_height_um: {height_um:.{args.precision}f}")
     print(f"lib_area: {area_text}")
     print(f"area_engine: {measurement.get('area_engine', 'klayout')}")
-    print(f"bbox_source: {measurement.get('bbox_source', 'all-non-text')}")
+    print(f"bbox_source: {measurement['bbox_source']}")
     print(f"text_labels_ignored: {measurement['text_count_ignored']}")
 
     if args.update_lib:
